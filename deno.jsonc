@@ -1,9 +1,5 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --watch main.ts"
-  },
-  "imports": {
-    "promise-limit": "https://esm.sh/promise-limit@^2.7.0",
-    "promise-retry": "https://esm.sh/promise-retry@^2.0.1"
+    "dev": "deno run --allow-net --watch ./src/ExpoClient.ts"
   }
 }
