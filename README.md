@@ -123,6 +123,12 @@ let receiptIdChunks = expo.chunkPushNotificationReceiptIds(receiptIds);
 
 The source code is in the `src/` directory.
 
+## TODO:
+
+This is a quick port of Expo-Server-SDK for Node. Since I'm not yet experienced with Deno and testing the only missing part for a full port is implementing the tests. 
+
+[] Implement deno tests following the tests from the Node.js version `src/.__tests__/__unused__ExpoClient-test.ts`
+
 ## See Also
 
   * https://github.com/expo-community/expo-server-sdk-ruby
