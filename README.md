@@ -1,4 +1,4 @@
-# expo-server-sdk-deno 
+# expo_server_sdk_deno 
 Server-side library for working with Expo using Deno - forked from expo-server-sdk-node
 
 If you have problems with the code in this repository, please file issues & bug reports. Thanks!
@@ -6,7 +6,7 @@ If you have problems with the code in this repository, please file issues & bug 
 ## Usage
 
 ```js
-import { Expo } from 'expo-server-sdk';
+import { Expo } from 'https://deno.land/x/expo_server_sdk_deno@1.0.1-n3.7.0/index.ts';
 
 // Create a new Expo SDK client
 // optionally providing an access token if you have enabled push security
