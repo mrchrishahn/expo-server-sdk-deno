@@ -5,8 +5,8 @@
  * https://expo.io
  */
 import assert from 'node:assert';
-import promiseLimit from 'promise-limit';
-import promiseRetry from 'promise-retry';
+import promiseLimit from 'https://esm.sh/promise-limit@2.7.0';
+import promiseRetry from 'https://esm.sh/promise-retry@2.0.1';
 import { gzip } from 'https://deno.land/x/compress@v0.4.4/mod.ts';
 import * as Constants from './constants.ts';
 
