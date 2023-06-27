@@ -1,15 +1,9 @@
-# expo-server-sdk-node ![Tests](https://github.com/expo/expo-server-sdk-node/workflows/Tests/badge.svg) [![codecov](https://codecov.io/gh/expo/expo-server-sdk-node/branch/master/graph/badge.svg)](https://codecov.io/gh/expo/expo-server-sdk-node)
-Server-side library for working with Expo using Node.js.
+# expo-server-sdk-deno 
+Server-side library for working with Expo using Deno - forked from expo-server-sdk-node
 
-If you have problems with the code in this repository, please file issues & bug reports at https://github.com/expo/expo. Thanks!
+If you have problems with the code in this repository, please file issues & bug reports. Thanks!
 
 ## Usage
-
-_Note: the following code assumes that you are using JavaScript modules with `import`. If you aren't then you should use the old syntax for the SDK import: `const { Expo } = require('expo-server-sdk')`._
-
-```bash
-yarn add expo-server-sdk
-```
 
 ```js
 import { Expo } from 'expo-server-sdk';
@@ -127,11 +121,7 @@ let receiptIdChunks = expo.chunkPushNotificationReceiptIds(receiptIds);
 
 ## Developing
 
-The source code is in the `src/` directory and babel is used to turn it into ES5 that goes in the `build/` directory.
-
-To build, `npm run build`.
-
-To build and watch for changes, `npm run watch`.
+The source code is in the `src/` directory.
 
 ## See Also
 

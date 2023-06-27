@@ -4,49 +4,29 @@
  * Use this if you are running Node on your server backend when you are working with Expo
  * https://expo.io
  */
-import assert from 'assert';
-import { Agent } from 'http';
-import fetch, { Headers, Response as FetchResponse } from 'node-fetch';
+import assert from 'node:assert';
 import promiseLimit from 'promise-limit';
 import promiseRetry from 'promise-retry';
-import zlib from 'zlib';
+import { gzip } from 'https://deno.land/x/compress@v0.4.4/mod.ts';
+import * as Constants from './constants.ts';
 
-import { requestRetryMinTimeout } from './ExpoClientValues';
+const requestRetryMinTimeout = Constants.REQUEST_RETRY_MIN_TIMEOUT;
 
-const BASE_URL = 'https://exp.host';
+const BASE_URL = Constants.BASE_URL;
 const BASE_API_URL = `${BASE_URL}/--/api/v2`;
 
-/**
- * The max number of push notifications to be sent at once. Since we can't automatically upgrade
- * everyone using this library, we should strongly try not to decrease it.
- */
-const PUSH_NOTIFICATION_CHUNK_LIMIT = 100;
-
-/**
- * The max number of push notification receipts to request at once.
- */
-const PUSH_NOTIFICATION_RECEIPT_CHUNK_LIMIT = 300;
-
-/**
- * The default max number of concurrent HTTP requests to send at once and spread out the load,
- * increasing the reliability of notification delivery.
- */
-const DEFAULT_CONCURRENT_REQUEST_LIMIT = 6;
-
 export class Expo {
-  static pushNotificationChunkSizeLimit = PUSH_NOTIFICATION_CHUNK_LIMIT;
-  static pushNotificationReceiptChunkSizeLimit = PUSH_NOTIFICATION_RECEIPT_CHUNK_LIMIT;
+  static pushNotificationChunkSizeLimit = Constants.PUSH_NOTIFICATION_CHUNK_LIMIT;
+  static pushNotificationReceiptChunkSizeLimit = Constants.PUSH_NOTIFICATION_RECEIPT_CHUNK_LIMIT;
 
-  private httpAgent: Agent | undefined;
   private limitConcurrentRequests: <T>(thunk: () => Promise<T>) => Promise<T>;
   private accessToken: string | undefined;
 
   constructor(options: ExpoClientOptions = {}) {
-    this.httpAgent = options.httpAgent;
     this.limitConcurrentRequests = promiseLimit(
       options.maxConcurrentRequests != null
         ? options.maxConcurrentRequests
-        : DEFAULT_CONCURRENT_REQUEST_LIMIT
+        : Constants.DEFAULT_CONCURRENT_REQUEST_LIMIT
     );
     this.accessToken = options.accessToken;
   }
@@ -88,7 +68,7 @@ export class Expo {
                 return body.length > 1024;
               },
             });
-          } catch (e: any) {
+          } catch (e) {
             // if Expo servers rate limit, retry with exponential backoff
             if (e.statusCode === 429) {
               return retry(e);
@@ -150,7 +130,7 @@ export class Expo {
         for (const recipient of message.to) {
           partialTo.push(recipient);
           chunkMessagesCount++;
-          if (chunkMessagesCount >= PUSH_NOTIFICATION_CHUNK_LIMIT) {
+          if (chunkMessagesCount >= Constants.PUSH_NOTIFICATION_CHUNK_LIMIT) {
             // Cap this chunk here if it already exceeds PUSH_NOTIFICATION_CHUNK_LIMIT.
             // Then create a new chunk to continue on the remaining recipients for this message.
             chunk.push({ ...message, to: partialTo });
@@ -169,7 +149,7 @@ export class Expo {
         chunkMessagesCount++;
       }
 
-      if (chunkMessagesCount >= PUSH_NOTIFICATION_CHUNK_LIMIT) {
+      if (chunkMessagesCount >= Constants.PUSH_NOTIFICATION_CHUNK_LIMIT) {
         // Cap this chunk if it exceeds PUSH_NOTIFICATION_CHUNK_LIMIT.
         // Then create a new chunk to continue on the remaining messages.
         chunks.push(chunk);
@@ -186,7 +166,7 @@ export class Expo {
   }
 
   chunkPushNotificationReceiptIds(receiptIds: ExpoPushReceiptId[]): ExpoPushReceiptId[][] {
-    return this.chunkItems(receiptIds, PUSH_NOTIFICATION_RECEIPT_CHUNK_LIMIT);
+    return this.chunkItems(receiptIds, Constants.PUSH_NOTIFICATION_RECEIPT_CHUNK_LIMIT);
   }
 
   private chunkItems<T>(items: T[], chunkSize: number): T[][] {
@@ -208,13 +188,13 @@ export class Expo {
   }
 
   private async requestAsync(url: string, options: RequestOptions): Promise<any> {
-    let requestBody: string | Buffer | undefined;
+    let requestBody: string | ArrayBuffer | undefined;
 
-    const sdkVersion = require('../package.json').version;
+    const sdkVersion = '3.7.0'; // TODO: make this reflect the version identified in Deno.jsonc
     const requestHeaders = new Headers({
       Accept: 'application/json',
       'Accept-Encoding': 'gzip, deflate',
-      'User-Agent': `expo-server-sdk-node/${sdkVersion}`,
+      'User-Agent': `expo-server-sdk-deno/${sdkVersion}`,
     });
     if (this.accessToken) {
       requestHeaders.set('Authorization', `Bearer ${this.accessToken}`);
@@ -224,7 +204,8 @@ export class Expo {
       const json = JSON.stringify(options.body);
       assert(json != null, `JSON request body must not be null`);
       if (options.shouldCompress(json)) {
-        requestBody = await gzipAsync(Buffer.from(json));
+        const data = new TextEncoder().encode(json);
+        requestBody = gzip(data);
         requestHeaders.set('Content-Encoding', 'gzip');
       } else {
         requestBody = json;
@@ -237,7 +218,6 @@ export class Expo {
       method: options.httpMethod,
       body: requestBody,
       headers: requestHeaders,
-      agent: this.httpAgent,
     });
 
     if (response.status !== 200) {
@@ -250,7 +230,7 @@ export class Expo {
     let result: ApiResult;
     try {
       result = JSON.parse(textBody);
-    } catch (e) {
+    } catch (_e) {
       const apiError = await this.getTextResponseErrorAsync(response, textBody);
       throw apiError;
     }
@@ -263,12 +243,12 @@ export class Expo {
     return result.data;
   }
 
-  private async parseErrorResponseAsync(response: FetchResponse): Promise<Error> {
+  private async parseErrorResponseAsync(response: Response): Promise<Error> {
     const textBody = await response.text();
     let result: ApiResult;
     try {
       result = JSON.parse(textBody);
-    } catch (e) {
+    } catch (_e) {
       return await this.getTextResponseErrorAsync(response, textBody);
     }
 
@@ -281,7 +261,7 @@ export class Expo {
     return this.getErrorFromResult(response, result);
   }
 
-  private async getTextResponseErrorAsync(response: FetchResponse, text: string): Promise<Error> {
+  private async getTextResponseErrorAsync(response: Response, text: string): Promise<Error> {
     const apiError: ExtensibleError = new Error(
       `Expo responded with an error with status code ${response.status}: ` + text
     );
@@ -294,7 +274,7 @@ export class Expo {
    * Returns an error for the first API error in the result, with an optional `others` field that
    * contains any other errors.
    */
-  private getErrorFromResult(response: FetchResponse, result: ApiResult): Error {
+  private getErrorFromResult(response: Response, result: ApiResult): Error {
     assert(result.errors && result.errors.length > 0, `Expected at least one error from Expo`);
     const [errorData, ...otherErrorData] = result.errors!;
     const error: ExtensibleError = this.getErrorFromResultError(errorData);
@@ -337,29 +317,18 @@ export class Expo {
 
 export default Expo;
 
-function gzipAsync(data: Buffer): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    zlib.gzip(data, (error, result) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(result);
-      }
-    });
-  });
-}
-
 export type ExpoClientOptions = {
-  httpAgent?: Agent;
   maxConcurrentRequests?: number;
   accessToken?: string;
 };
 
 export type ExpoPushToken = string;
 
+type ExpoPushMessageDetailsObject = Record<string | number | symbol, unknown>;
+
 export type ExpoPushMessage = {
   to: ExpoPushToken | ExpoPushToken[];
-  data?: object;
+  data?: ExpoPushMessageDetailsObject;
   title?: string;
   subtitle?: string;
   body?: string;
@@ -393,9 +362,9 @@ export type ExpoPushTicket = ExpoPushSuccessTicket | ExpoPushErrorTicket;
 
 export type ExpoPushSuccessReceipt = {
   status: 'ok';
-  details?: object;
+  details?: ExpoPushMessageDetailsObject;
   // Internal field used only by developers working on Expo
-  __debug?: any;
+  __debug?: unknown;
 };
 
 export type ExpoPushErrorReceipt = {
@@ -405,7 +374,7 @@ export type ExpoPushErrorReceipt = {
     error?: 'DeviceNotRegistered' | 'InvalidCredentials' | 'MessageTooBig' | 'MessageRateExceeded';
   };
   // Internal field used only by developers working on Expo
-  __debug?: any;
+  __debug?: unknown;
 };
 
 export type ExpoPushReceipt = ExpoPushSuccessReceipt | ExpoPushErrorReceipt;
