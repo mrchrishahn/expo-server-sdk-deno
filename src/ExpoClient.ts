@@ -4,7 +4,6 @@
  * Use this if you are running Node on your server backend when you are working with Expo
  * https://expo.io
  */
-import assert from 'node:assert';
 import promiseLimit from 'https://esm.sh/promise-limit@2.7.0';
 import promiseRetry from 'https://esm.sh/promise-retry@2.0.1';
 import { gzip } from 'https://deno.land/x/compress@v0.4.4/mod.ts';
@@ -202,7 +201,9 @@ export class Expo {
 
     if (options.body != null) {
       const json = JSON.stringify(options.body);
-      assert(json != null, `JSON request body must not be null`);
+      if (json == null) {
+        throw Error('JSON request body must not be null')
+      }
       if (options.shouldCompress(json)) {
         const data = new TextEncoder().encode(json);
         requestBody = gzip(data);
@@ -231,7 +232,7 @@ export class Expo {
     try {
       result = JSON.parse(textBody);
     } catch (_e) {
-      const apiError = await this.getTextResponseErrorAsync(response, textBody);
+      const apiError = this.getTextResponseError(response, textBody);
       throw apiError;
     }
 
@@ -249,11 +250,11 @@ export class Expo {
     try {
       result = JSON.parse(textBody);
     } catch (_e) {
-      return await this.getTextResponseErrorAsync(response, textBody);
+      return this.getTextResponseError(response, textBody);
     }
 
     if (!result.errors || !Array.isArray(result.errors) || !result.errors.length) {
-      const apiError: ExtensibleError = await this.getTextResponseErrorAsync(response, textBody);
+      const apiError: ExtensibleError = this.getTextResponseError(response, textBody);
       apiError.errorData = result;
       return apiError;
     }
@@ -261,7 +262,7 @@ export class Expo {
     return this.getErrorFromResult(response, result);
   }
 
-  private async getTextResponseErrorAsync(response: Response, text: string): Promise<Error> {
+  private getTextResponseError(response: Response, text: string): Error {
     const apiError: ExtensibleError = new Error(
       `Expo responded with an error with status code ${response.status}: ` + text
     );
@@ -275,7 +276,9 @@ export class Expo {
    * contains any other errors.
    */
   private getErrorFromResult(response: Response, result: ApiResult): Error {
-    assert(result.errors && result.errors.length > 0, `Expected at least one error from Expo`);
+    if (!result.errors || !Array.isArray(result.errors) || !result.errors.length) {
+      throw new Error('Expected at least one error from Expo');
+    }
     const [errorData, ...otherErrorData] = result.errors!;
     const error: ExtensibleError = this.getErrorFromResultError(errorData);
     if (otherErrorData.length) {
